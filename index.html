@@ -255,9 +255,7 @@
     margin-bottom: 6px;
   }
   .day-staff {
-    font-size: 11px;
-    color: var(--muted);
-    line-height: 1.5;
+    display: none;
   }
   
   /* ベンダーカード */
@@ -812,6 +810,7 @@
     letter-spacing: 0.05em;
     color: var(--paper);
   }
+  .rule-category.cat-warn { background: var(--accent); }
   .rule-category.cat-pick { background: var(--green); }
   .rule-category.cat-prep { background: var(--blue); }
   .rule-category.cat-ship { background: var(--gold); }
@@ -866,6 +865,7 @@
     border-color: transparent;
   }
   .filter-chip[data-cat="all"].active { background: var(--ink); }
+  .filter-chip[data-cat="warn"].active { background: var(--accent); border-color: var(--accent); }
   .filter-chip[data-cat="pick"].active { background: var(--green); border-color: var(--green); }
   .filter-chip[data-cat="prep"].active { background: var(--blue); border-color: var(--blue); }
   .filter-chip[data-cat="ship"].active { background: var(--gold); border-color: var(--gold); }
@@ -1428,7 +1428,7 @@
 <header class="header">
   <div class="header-content">
     <h1 class="title">出荷マニュアル<span class="accent">＆</span>業務フロー</h1>
-    <div class="subtitle">2026.03 / SHIPPING OPERATIONS MANUAL / v.b9</div>
+    <div class="subtitle">2026.03 / SHIPPING OPERATIONS MANUAL / v.b11</div>
   </div>
   <div class="theme-toggle" id="themeToggle" role="button" tabindex="0" aria-label="テーマ切替">🌙</div>
 </header>
@@ -1521,6 +1521,7 @@
 <div class="panel" id="rules">
   <div class="category-filter" id="categoryFilter">
     <div class="filter-chip active" data-cat="all" role="button" tabindex="0">🔍 全て</div>
+    <div class="filter-chip" data-cat="warn" role="button" tabindex="0">⚠️ 注意</div>
     <div class="filter-chip" data-cat="pick" role="button" tabindex="0">🛒 ピッキング</div>
     <div class="filter-chip" data-cat="prep" role="button" tabindex="0">📦 出荷準備</div>
     <div class="filter-chip" data-cat="ship" role="button" tabindex="0">🚚 出荷</div>
@@ -2789,10 +2790,10 @@
   }
   
   // 初期状態のルールを各vendorから抽出して保存(初回のみ)
-  const INITIAL_RULES_KEY = 'yamanishi_initial_rules_v4';
+  const INITIAL_RULES_KEY = 'yamanishi_initial_rules_v5';
   function captureInitialRules() {
     // 古いキャッシュを破棄
-    ['yamanishi_initial_rules_v1', 'yamanishi_initial_rules_v2', 'yamanishi_initial_rules_v3'].forEach(k => localStorage.removeItem(k));
+    ['yamanishi_initial_rules_v1', 'yamanishi_initial_rules_v2', 'yamanishi_initial_rules_v3', 'yamanishi_initial_rules_v4'].forEach(k => localStorage.removeItem(k));
     if (localStorage.getItem(INITIAL_RULES_KEY)) return;
     const initial = {};
     document.querySelectorAll('.vendor').forEach(vendor => {
@@ -3048,6 +3049,7 @@
   // ===== ルール分類 =====
   const CATEGORIES = [
     { id: 'all', label: '🔍 全て', color: 'var(--ink)' },
+    { id: 'warn', label: '⚠️ 注意', color: 'var(--accent)' },
     { id: 'pick', label: '🛒 ピッキング', color: 'var(--green)' },
     { id: 'prep', label: '📦 出荷準備', color: 'var(--blue)' },
     { id: 'ship', label: '🚚 出荷', color: 'var(--gold)' },
@@ -3057,6 +3059,9 @@
   // ラベル+テキスト内容から分類を自動推定
   function inferCategory(label, text) {
     const all = (label + ' ' + text).toLowerCase();
+    
+    // 注意(警告レベルの強いルール)
+    if (/注意|厳禁|禁止|必須|要確認/.test(all)) return 'warn';
     
     // 物流時(着指定、月跨ぎ、配送制約)
     if (/着指定|月跨ぎ|2日前|午前着/.test(all)) return 'logi';
