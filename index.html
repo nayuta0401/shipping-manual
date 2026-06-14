@@ -849,6 +849,11 @@
     to { opacity: 1; transform: scale(1); }
   }
   
+  /* 切替タブがあるvendorではタグを隠す(タブで判別可能なため) */
+  .vendor:has(.type-tabs) .vendor-name > .vendor-tag {
+    display: none;
+  }
+  
   /* 検索ハイライト */
   mark.search-hit {
     background: var(--highlight);
@@ -1485,7 +1490,7 @@
 <header class="header">
   <div class="header-content">
     <h1 class="title">出荷マニュアル<span class="accent">＆</span>業務フロー</h1>
-    <div class="subtitle">2026.03 / SHIPPING OPERATIONS MANUAL / v.b13</div>
+    <div class="subtitle">2026.03 / SHIPPING OPERATIONS MANUAL / v.b16</div>
   </div>
   <div class="theme-toggle" id="themeToggle" role="button" tabindex="0" aria-label="テーマ切替">🌙</div>
 </header>
@@ -1547,31 +1552,6 @@
     </div>
   </div>
   
-  <!-- ミス防止の3か条 -->
-  <div class="prevention">
-    <div class="prevention-title">✓ ミス防止の3か条</div>
-    <div class="prevention-item">
-      <div class="prevention-num">1</div>
-      <div class="prevention-content">
-        <div class="prevention-name">最後チェック</div>
-        <div class="prevention-desc">商品を箱に入れ、数量を書き、リストにチェック</div>
-      </div>
-    </div>
-    <div class="prevention-item">
-      <div class="prevention-num">2</div>
-      <div class="prevention-content">
-        <div class="prevention-name">色確認</div>
-        <div class="prevention-desc">ベージュ系はカラーコード下2桁を照合</div>
-      </div>
-    </div>
-    <div class="prevention-item">
-      <div class="prevention-num">3</div>
-      <div class="prevention-content">
-        <div class="prevention-name">迷ったら止まる</div>
-        <div class="prevention-desc">枚数・金額が合わない時はリーダーに即確認</div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- ② 出荷ルール -->
@@ -2338,22 +2318,23 @@
     });
   });
   
-  // EOS/SPOTタイプタブ切替
-  document.querySelectorAll('.type-tab').forEach(tab => {
-    tab.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const vendor = tab.closest('.vendor');
-      const type = tab.dataset.type;
-      // タブのactive切替
-      vendor.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      // ボディの表示切替
-      vendor.querySelectorAll('.type-body').forEach(b => {
-        b.classList.toggle('active', b.dataset.type === type);
-      });
-      // 折り畳み状態なら開く
-      vendor.classList.remove('collapsed');
+  // EOS/SPOTタイプタブ切替(委譲方式で動的追加タブにも対応)
+  document.addEventListener('click', function(e) {
+    const tab = e.target.closest('.type-tab');
+    if (!tab) return;
+    e.stopPropagation();
+    const vendor = tab.closest('.vendor');
+    if (!vendor) return;
+    const type = tab.dataset.type;
+    // タブのactive切替(同じvendor内のみ)
+    vendor.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    // ボディの表示切替
+    vendor.querySelectorAll('.type-body').forEach(b => {
+      b.classList.toggle('active', b.dataset.type === type);
     });
+    // 折り畳み状態なら開く
+    vendor.classList.remove('collapsed');
   });
   
   // ===== 写真機能 =====
@@ -3313,13 +3294,8 @@
   }
   
   function addCustomVendor() {
-    alert('[デバッグ] 追加ボタンが押された');
     const name = prompt('販売先の名前を入力してください（例: 新規スーパー）');
-    if (!name || !name.trim()) {
-      alert('[デバッグ] 名前が空');
-      return;
-    }
-    alert('[デバッグ] 入力された名前: ' + name);
+    if (!name || !name.trim()) return;
     const customs = loadCustomVendors();
     customs.push({
       id: 'custom_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -3328,9 +3304,7 @@
       added: new Date().toISOString()
     });
     saveCustomVendors(customs);
-    alert('[デバッグ] 保存完了、現在の登録数: ' + customs.length);
     renderCustomVendors();
-    alert('[デバッグ] 描画完了');
   }
   
   function addTypeToVendor(customId, type) {
@@ -3410,59 +3384,50 @@
     
     const existingTypes = getVendorExistingTypes(vendor);
     
-    // ベンダー名にタグ追加
+    // ベンダー名のタグは追加しない(切替タブで判別できるため)
     const nameEl = vendor.querySelector('.vendor-name');
-    if (nameEl && !nameEl.querySelector(`.tag-${newType}`)) {
-      const tag = document.createElement('span');
-      tag.className = `vendor-tag tag-${newType}`;
-      tag.textContent = newType.toUpperCase();
-      nameEl.appendChild(document.createTextNode(' '));
-      nameEl.appendChild(tag);
-    }
     
     // type-bodyがすでにある(=以前から構成されていた) → 新しいtype-bodyを追加
     const hasTypeBodies = body.querySelectorAll(':scope > .type-body').length > 0;
     
     if (hasTypeBodies) {
-      // 既にtype-tabsがある → タブを追加
+      // 既存のtype-tabsを探す(vendor-name内 or vendor-header内のどちらか)
       let typeTabs = vendor.querySelector('.vendor-header .type-tabs');
+      
       if (typeTabs) {
+        // 既存タブに追加
         if (!typeTabs.querySelector(`.type-tab[data-type="${newType}"]`)) {
-          const newTab = document.createElement('div');
-          newTab.className = 'type-tab';
+          const newTab = document.createElement('button');
+          newTab.className = `type-tab ${newType}`;
           newTab.dataset.type = newType;
           newTab.textContent = newType.toUpperCase();
           typeTabs.appendChild(newTab);
         }
       } else {
-        // type-tabsがなく、type-bodyだけある場合(既存タイプ1つ) → tabsを新規作成
-        const header = vendor.querySelector('.vendor-header');
-        const toggle = header.querySelector('.vendor-toggle');
-        const actions = header.querySelector('.vendor-actions');
+        // type-tabsがなく、type-bodyだけある場合 → tabsを新規作成して vendor-name 内に挿入
         typeTabs = document.createElement('div');
         typeTabs.className = 'type-tabs';
         existingTypes.forEach((t, i) => {
-          const tab = document.createElement('div');
-          tab.className = 'type-tab' + (i === 0 ? ' active' : '');
+          const tab = document.createElement('button');
+          tab.className = `type-tab ${t}${i === 0 ? ' active' : ''}`;
           tab.dataset.type = t;
           tab.textContent = t.toUpperCase();
           typeTabs.appendChild(tab);
         });
-        const newTab = document.createElement('div');
-        newTab.className = 'type-tab';
+        const newTab = document.createElement('button');
+        newTab.className = `type-tab ${newType}`;
         newTab.dataset.type = newType;
         newTab.textContent = newType.toUpperCase();
         typeTabs.appendChild(newTab);
-        // tabsを vendor-actions の前(または toggleの前)に挿入
-        const insertBefore = actions || toggle;
-        header.insertBefore(typeTabs, insertBefore);
+        // vendor-name の中に追加(既存と同じ配置)
+        if (nameEl) nameEl.appendChild(typeTabs);
       }
       
       // 新しいtype-bodyを追加
       const newBody = document.createElement('div');
       newBody.className = 'type-body';
       newBody.dataset.type = newType;
-      // photos/notes より前に挿入
+      // photos/notes/edit-toolbar より前に挿入
       const photos = body.querySelector('.photos');
       const notes = body.querySelector('.notes-section');
       const insertBefore = photos || notes;
@@ -3472,12 +3437,12 @@
         body.appendChild(newBody);
       }
     } else {
-      // type-bodyがない単一構成 → 既存ルールを type-body[eos or spot] に入れて、新type-bodyも追加
+      // type-bodyがない単一構成 → 既存ルールを type-body[元タイプ] に入れて、新type-bodyも追加
       const oldRules = Array.from(body.querySelectorAll(':scope > .rule'));
       const oldToolbar = body.querySelector(':scope > .edit-toolbar');
       
-      // 元のタイプを推定(タグから)
-      const oldType = existingTypes[0] || 'eos';
+      // 元のタイプを推定(現状のタグから)
+      const oldType = existingTypes.find(t => t !== newType) || (newType === 'eos' ? 'spot' : 'eos');
       
       const oldBody = document.createElement('div');
       oldBody.className = 'type-body active';
@@ -3497,33 +3462,17 @@
       body.insertBefore(oldBody, insertBefore);
       body.insertBefore(newBody, insertBefore);
       
-      // タブを作成
-      const header = vendor.querySelector('.vendor-header');
-      const toggle = header.querySelector('.vendor-toggle');
-      const actions = header.querySelector('.vendor-actions');
+      // タブを vendor-name 内に作成
       const typeTabs = document.createElement('div');
       typeTabs.className = 'type-tabs';
       [oldType, newType].forEach((t, i) => {
-        const tab = document.createElement('div');
-        tab.className = 'type-tab' + (i === 0 ? ' active' : '');
+        const tab = document.createElement('button');
+        tab.className = `type-tab ${t}${i === 0 ? ' active' : ''}`;
         tab.dataset.type = t;
         tab.textContent = t.toUpperCase();
         typeTabs.appendChild(tab);
       });
-      header.insertBefore(typeTabs, actions || toggle);
-      
-      // タブのclickハンドラ(委譲で既に効くはずだが念のため)
-      typeTabs.querySelectorAll('.type-tab').forEach(tab => {
-        tab.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const type = tab.dataset.type;
-          vendor.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
-          tab.classList.add('active');
-          vendor.querySelectorAll('.type-body').forEach(b => {
-            b.classList.toggle('active', b.dataset.type === type);
-          });
-        });
-      });
+      if (nameEl) nameEl.appendChild(typeTabs);
     }
   }
   
@@ -3534,6 +3483,12 @@
       const types = stored[stableId];
       document.querySelectorAll('.vendor:not(.custom-vendor)').forEach(v => {
         if (getStableVendorId(v) === stableId) {
+          // 既に動的に追加されたタグがあれば削除(再描画用)
+          types.forEach(t => {
+            const tag = v.querySelector(`.vendor-name > .tag-${t}`);
+            if (tag) tag.remove();
+          });
+          // タイプを追加
           types.forEach(t => {
             const existing = getVendorExistingTypes(v);
             if (!existing.includes(t)) {
@@ -3960,6 +3915,219 @@
   
   // 初期状態で全ベンダーカードを折り畳む
   document.querySelectorAll('.vendor').forEach(v => v.classList.add('collapsed'));
+
+  // ===== Supabase 同期モジュール =====
+  (function() {
+    const SUPA_URL  = 'https://wrvdrkkzjgpdptbivuui.supabase.co';
+    const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndydmRya2t6amdwZHB0Yml2dXVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzOTI0NjYsImV4cCI6MjA5Njk2ODQ2Nn0.zfhgKV28R8lZx8dQYd9znjw1N2Q2T8jwZyxRDYybt2o';
+    const TABLE     = 'yamanishi_store';
+    const TEAM_ROW  = 'team_data';  // 全員で共有する1行のキー
+
+    const HEADERS = {
+      'Content-Type': 'application/json',
+      'apikey': SUPA_KEY,
+      'Authorization': 'Bearer ' + SUPA_KEY,
+      'Prefer': 'resolution=merge-duplicates'
+    };
+
+    // 同期ステータス表示
+    const statusEl = document.createElement('div');
+    statusEl.id = 'sync-status';
+    statusEl.style.cssText = `
+      position: fixed; bottom: 70px; right: 12px;
+      font-size: 11px; padding: 4px 10px; border-radius: 20px;
+      background: rgba(0,0,0,0.6); color: #fff;
+      z-index: 9999; opacity: 0; transition: opacity 0.4s;
+      pointer-events: none;
+    `;
+    document.body.appendChild(statusEl);
+
+    let _hideTimer;
+    function showStatus(msg, isError) {
+      statusEl.textContent = msg;
+      statusEl.style.background = isError ? 'rgba(200,71,47,0.85)' : 'rgba(74,124,78,0.85)';
+      statusEl.style.opacity = '1';
+      clearTimeout(_hideTimer);
+      _hideTimer = setTimeout(() => { statusEl.style.opacity = '0'; }, 2500);
+    }
+
+    // Supabaseから全データ取得
+    async function fetchFromSupabase() {
+      try {
+        const res = await fetch(
+          `${SUPA_URL}/rest/v1/${TABLE}?key=eq.${TEAM_ROW}&select=value`,
+          { headers: HEADERS }
+        );
+        if (!res.ok) return null;
+        const rows = await res.json();
+        if (!rows || rows.length === 0) return null;
+        return JSON.parse(rows[0].value);
+      } catch(e) {
+        console.warn('Supabase fetch error:', e);
+        return null;
+      }
+    }
+
+    // Supabaseへ全データ保存（upsert）
+    async function pushToSupabase(data) {
+      try {
+        const res = await fetch(`${SUPA_URL}/rest/v1/${TABLE}`, {
+          method: 'POST',
+          headers: HEADERS,
+          body: JSON.stringify({ key: TEAM_ROW, value: JSON.stringify(data), updated_at: new Date().toISOString() })
+        });
+        return res.ok;
+      } catch(e) {
+        console.warn('Supabase push error:', e);
+        return false;
+      }
+    }
+
+    // 現在のlocalStorageの全データをまとめる
+    function collectLocalData() {
+      return {
+        edits:         JSON.parse(localStorage.getItem('yamanishi_rule_edits_v1') || '{}'),
+        notes:         JSON.parse(localStorage.getItem('yamanishi_notes_v1') || '{}'),
+        photos:        JSON.parse(localStorage.getItem('yamanishi_vendor_photos_v1') || '{}'),
+        customVendors: JSON.parse(localStorage.getItem('yamanishi_custom_vendors_v1') || '[]'),
+        initialRules:  JSON.parse(localStorage.getItem('yamanishi_initial_rules_v5') || '{}'),
+        existingTypes: JSON.parse(localStorage.getItem('yamanishi_existing_vendor_types_v1') || '{}'),
+      };
+    }
+
+    // Supabaseのデータをlocalに適用して画面を再描画
+    function applyRemoteData(remote) {
+      if (!remote) return;
+      if (remote.edits)         localStorage.setItem('yamanishi_rule_edits_v1', JSON.stringify(remote.edits));
+      if (remote.notes)         localStorage.setItem('yamanishi_notes_v1', JSON.stringify(remote.notes));
+      if (remote.photos)        localStorage.setItem('yamanishi_vendor_photos_v1', JSON.stringify(remote.photos));
+      if (remote.customVendors) localStorage.setItem('yamanishi_custom_vendors_v1', JSON.stringify(remote.customVendors));
+      if (remote.initialRules)  localStorage.setItem('yamanishi_initial_rules_v5', JSON.stringify(remote.initialRules));
+      if (remote.existingTypes) localStorage.setItem('yamanishi_existing_vendor_types_v1', JSON.stringify(remote.existingTypes));
+
+      // 画面を再描画
+      document.querySelectorAll('.vendor').forEach(v => {
+        v.classList.remove('editing');
+        renderVendorBody(v);
+      });
+      document.querySelectorAll('.notes-section').forEach(s => {
+        renderNotes(s.dataset.vendorId);
+      });
+      document.querySelectorAll('.photos').forEach(p => {
+        const vid = p.dataset.vendorId;
+        if (vid) renderPhotos(vid);
+      });
+      renderCustomVendors();
+    }
+
+    // 保存してSupabaseに同期
+    window._syncToSupabase = async function() {
+      showStatus('⬆ 同期中...');
+      const ok = await pushToSupabase(collectLocalData());
+      showStatus(ok ? '✓ 同期完了' : '✗ 同期失敗', !ok);
+    };
+
+    // 既存のsave関数をフック（保存のたびに自動同期）
+    const _origSaveEdits   = window.saveEdits   || null;
+    const _origSaveNotes   = saveNotes;
+    const _origSavePhotos  = savePhotos;
+
+    // フック用ラッパー（debounce で連打を防ぐ）
+    let _syncTimer;
+    function debouncedSync() {
+      clearTimeout(_syncTimer);
+      _syncTimer = setTimeout(() => { window._syncToSupabase(); }, 1500);
+    }
+
+    // saveEdits / saveNotes / savePhotos / saveCustomVendors をグローバルからフック
+    // ※ 各関数はすでにlocalStorageへ書いた後にこちらが呼ばれる形でラップ
+    const _patchSave = (origFn, patchedName) => {
+      return function(data) {
+        origFn(data);
+        debouncedSync();
+      };
+    };
+
+    // 関数を差し替え（同スコープ内なのでlet/constでは無理なため window経由で公開したものを使用）
+    window.__sbHook = debouncedSync;
+
+    // saveEdits は内部 const なので、saveEditsForVendor のあとに呼ぶ形でフック
+    // → toggleEdit → saveEditsForVendor → saveEdits の流れなので
+    //   saveEdits をラップする代わりに toggleEdit の後にフック
+    const _origToggleEdit = toggleEdit;
+    // toggleEdit はこのスコープ内の関数なのでそのまま再代入不可
+    // → 代わりに saveEdits が呼ばれたとき document イベントで検知
+    // ここでは MutationObserver を使わず、シンプルに各ボタンのイベント後にフック
+
+    // 付箋・写真・カスタム販売先はグローバルに公開されていないので
+    // localStorage のキーを監視する storage イベントでフック
+    window.addEventListener('storage', function(e) {
+      const watchKeys = [
+        'yamanishi_rule_edits_v1',
+        'yamanishi_notes_v1',
+        'yamanishi_vendor_photos_v1',
+        'yamanishi_custom_vendors_v1',
+        'yamanishi_existing_vendor_types_v1',
+      ];
+      if (watchKeys.includes(e.key)) {
+        debouncedSync();
+      }
+    });
+
+    // ボタン操作後にもフック（同一タブのstorageイベントは発火しないため）
+    document.addEventListener('click', function(e) {
+      const target = e.target;
+      if (!target) return;
+      // 保存・メモ・写真・カスタム販売先操作を検知
+      if (
+        target.closest('.save-btn') ||
+        target.closest('.note-add-btn') ||
+        target.closest('.note-delete') ||
+        target.closest('#addVendorBtn') ||
+        target.closest('.vendor-delete-btn') ||
+        target.closest('#saveCaptionBtn') ||
+        target.closest('#deleteBtn') ||
+        target.closest('.add-type-tab-btn')
+      ) {
+        setTimeout(debouncedSync, 200);
+      }
+    }, true);
+
+    // ===== 起動時: Supabaseから最新データを取得して適用 =====
+    (async function init() {
+      showStatus('☁ データを読み込み中...');
+      const remote = await fetchFromSupabase();
+      if (remote) {
+        applyRemoteData(remote);
+        showStatus('✓ クラウドから読み込みました');
+      } else {
+        // Supabaseにデータがなければ、ローカルのデータをアップロード
+        showStatus('⬆ 初回アップロード中...');
+        const ok = await pushToSupabase(collectLocalData());
+        showStatus(ok ? '✓ アップロード完了' : '接続できませんでした', !ok);
+      }
+    })();
+
+    // 手動同期ボタンをヘッダーに追加
+    const header = document.querySelector('.header');
+    if (header) {
+      const syncBtn = document.createElement('div');
+      syncBtn.innerHTML = '☁';
+      syncBtn.title = '手動同期';
+      syncBtn.style.cssText = `
+        position: absolute; top: 16px; left: 16px;
+        width: 38px; height: 38px; border-radius: 50%;
+        background: rgba(245,241,232,0.1); color: var(--paper);
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px; cursor: pointer; z-index: 2;
+        touch-action: manipulation;
+      `;
+      syncBtn.addEventListener('click', () => window._syncToSupabase());
+      header.appendChild(syncBtn);
+    }
+
+  })();
+  // ===== Supabase 同期モジュール ここまで =====
 </script>
 
 </body>
